@@ -114,10 +114,12 @@ export default function Home() {
   }
 
   const handlePrevStep = () => {
+    setFormError(null)
     setCurrentStep(1)
   }
 
   const handleSubmit = async () => {
+    setFormError(null)
     if (!formData.name || !formData.email || !formData.phone || !formData.location) {
       setFormError("Bitte füllen Sie alle Pflichtfelder aus.")
       return
@@ -423,6 +425,11 @@ export default function Home() {
                       </div>
                     )}
 
+                    {formError && (
+                      <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
+                        {formError}
+                      </div>
+                    )}
                     <Button className="w-full bg-orange-600 hover:bg-orange-700 hover:scale-[1.02] transition-transform" onClick={handleNextStep}>Weiter</Button>
                   </>
                 ) : (
@@ -475,6 +482,11 @@ export default function Home() {
                       )}
                     </div>
 
+                    {formError && (
+                      <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
+                        {formError}
+                      </div>
+                    )}
                     <div className="flex gap-4">
                       <Button variant="outline" className="flex-1" onClick={handlePrevStep} disabled={isSubmitting}>Zurück</Button>
                       <Button className="flex-1 bg-orange-600 hover:bg-orange-700" onClick={handleSubmit} disabled={isSubmitting}>

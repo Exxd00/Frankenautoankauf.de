@@ -26,9 +26,26 @@ function safeSlug(input: string) {
     .slice(0, 40)
 }
 
+// Generate unique lead ID
+function generateLeadId() {
+  const timestamp = Date.now().toString(36)
+  const random = Math.random().toString(36).substring(2, 8)
+  return `lead_${timestamp}_${random}`
+}
+
+// Get base URL for dashboard links
+function getBaseUrl() {
+  return process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : process.env.NEXT_PUBLIC_BASE_URL || 'https://frankenautoankauf.de'
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
+
+    // Generate unique lead ID
+    const leadId = generateLeadId()
 
     // Extract form fields
     const brand = formData.get('brand') as string
@@ -139,55 +156,72 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Prepare email content - simple HTML format
-    const bilderHtml =
-      imageUrls.length > 0
-        ? `<ul>${imageUrls
-            .map((u, i) => `<li><strong>Bild ${i + 1}:</strong> <a href="${u}">${u}</a></li>`)
-            .join('')}</ul>`
-        : fileCount > 0 && uploadError
-          ? `<p><strong>${fileCount} Bild(er)</strong> wurden ausgewählt, aber das Hochladen ist fehlgeschlagen.</p>
-             <p><small>Hinweis: Bitte BLOB_READ_WRITE_TOKEN in Vercel Environment Variables setzen.</small></p>`
-          : '<p>Keine Bilder hochgeladen</p>'
+    // Dashboard URL for this lead
+    const baseUrl = getBaseUrl()
+    const dashboardUrl = `${baseUrl}/admin/dashboard/lead/${leadId}`
 
+    // Prepare simplified email content with dashboard button
     const emailContent = `
-<h2>Neue Auto-Ankauf Anfrage</h2>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f5f5; margin: 0; padding: 20px;">
+  <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
 
-<h3>Fahrzeugdaten:</h3>
-<ul>
-  <li><strong>Marke:</strong> ${brand?.toUpperCase() || 'Nicht angegeben'}</li>
-  <li><strong>Modell:</strong> ${model || 'Nicht angegeben'}</li>
-  <li><strong>Baujahr:</strong> ${year || 'Nicht angegeben'}</li>
-  <li><strong>Kilometerstand:</strong> ${mileage || 'Nicht angegeben'} km</li>
-  <li><strong>Kraftstoff:</strong> ${fuel || 'Nicht angegeben'}</li>
-</ul>
+    <!-- Header -->
+    <div style="background: linear-gradient(135deg, #ea580c, #f97316); padding: 24px; text-align: center;">
+      <h1 style="color: white; margin: 0; font-size: 20px;">Neue Anfrage</h1>
+    </div>
 
-<h3>Kontaktdaten:</h3>
-<ul>
-  <li><strong>Name:</strong> ${name || 'Nicht angegeben'}</li>
-  <li><strong>E-Mail:</strong> ${email || 'Nicht angegeben'}</li>
-  <li><strong>Telefon:</strong> ${phone || 'Nicht angegeben'}</li>
-  <li><strong>Standort:</strong> ${location || 'Nicht angegeben'}</li>
-</ul>
+    <!-- Content -->
+    <div style="padding: 24px;">
 
-<h3>Lead-Tracking:</h3>
-<ul>
-  <li><strong>Quelle (Klick):</strong> ${click_source || '-'}</li>
-  <li><strong>Quelle URL:</strong> ${lead_source_url || '-'}</li>
-  <li><strong>Seite:</strong> ${page_url || '-'}</li>
-  <li><strong>Referrer:</strong> ${referrer || '-'}</li>
-  <li><strong>Gerät:</strong> ${device_type || '-'}</li>
-  <li><strong>Zeit:</strong> ${timestamp || '-'}</li>
-</ul>
+      <!-- Vehicle Summary -->
+      <div style="background: #f8f8f8; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+        <p style="margin: 0 0 8px 0; color: #666; font-size: 12px; text-transform: uppercase;">Fahrzeug</p>
+        <p style="margin: 0; font-size: 20px; font-weight: bold; color: #333;">
+          ${brand?.toUpperCase() || ''} ${model || ''} ${year ? `(${year})` : ''}
+        </p>
+        ${mileage ? `<p style="margin: 4px 0 0 0; color: #666;">${Number(mileage).toLocaleString('de-DE')} km</p>` : ''}
+      </div>
 
-<h3>Nachricht:</h3>
-<p>${message || 'Keine Nachricht'}</p>
+      <!-- Contact Summary -->
+      <div style="background: #f8f8f8; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+        <p style="margin: 0 0 8px 0; color: #666; font-size: 12px; text-transform: uppercase;">Kunde</p>
+        <p style="margin: 0; font-size: 16px; font-weight: bold; color: #333;">${name || '-'}</p>
+        <p style="margin: 4px 0 0 0; color: #666;">${location || '-'}</p>
+        <p style="margin: 8px 0 0 0;">
+          <a href="tel:${phone}" style="color: #ea580c; text-decoration: none; font-weight: 500;">${phone || '-'}</a>
+        </p>
+      </div>
 
-<h3>Bilder:</h3>
-${bilderHtml}
+      ${imageUrls.length > 0 ? `
+      <!-- Image indicator -->
+      <div style="background: #f0e6ff; border-radius: 8px; padding: 12px; margin-bottom: 24px; text-align: center;">
+        <span style="color: #7c3aed; font-weight: 500;">${imageUrls.length} Bild${imageUrls.length > 1 ? 'er' : ''} hochgeladen</span>
+      </div>
+      ` : ''}
 
-<hr>
-<p><small>Diese Anfrage wurde über frankenautoankauf.de gesendet.</small></p>
+      <!-- CTA Button -->
+      <a href="${dashboardUrl}" style="display: block; background: #ea580c; color: white; text-decoration: none; padding: 16px 24px; border-radius: 8px; text-align: center; font-weight: bold; font-size: 16px;">
+        Anfrage öffnen
+      </a>
+
+    </div>
+
+    <!-- Footer -->
+    <div style="padding: 16px 24px; background: #f8f8f8; text-align: center;">
+      <p style="margin: 0; color: #999; font-size: 12px;">
+        ${new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+      </p>
+    </div>
+
+  </div>
+</body>
+</html>
     `.trim()
 
 
@@ -195,6 +229,7 @@ ${bilderHtml}
       if (!SHEETS_WEBHOOK_URL) return
       try {
         const sheetsPayload = {
+          id: leadId,
           brand: brand || '',
           model: model || '',
           year: year || '',

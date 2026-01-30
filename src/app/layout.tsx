@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { ClientBody } from "./ClientBody";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import Script from "next/script";
+import { ClientBody } from "./ClientBody";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -185,6 +186,7 @@ gtag('config', 'G-YGLT1K9TFD');
       </head>
       <body suppressHydrationWarning className="antialiased">
         <ClientBody>{children}</ClientBody>
+        <SpeedInsights />
       </body>
     </html>
   );

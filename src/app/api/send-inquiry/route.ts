@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 
 // API Keys from environment
 const RESEND_API_KEY = process.env.RESEND_API_KEY || ''
-const IMGBB_API_KEY = process.env.IMGG_API_KEY || ''
+const IMGBB_API_KEY = process.env.IMGBB_API_KEY || process.env.IMGG_API_KEY || ''
 const SHEETS_WEBHOOK_URL = process.env.SHEETS_WEBHOOK_URL || ''
-const RECIPIENT_EMAIL = 'info@frankenautoankauf.de'
-const FROM_EMAIL = 'anfrage@send.frankenautoankauf.de' // Subdomain für Resend (DKIM/SPF konfiguriert)
+const RECIPIENT_EMAIL = process.env.RECIPIENT_EMAIL || 'info@frankenautoankauf.de'
+const FROM_EMAIL = process.env.FROM_EMAIL || 'onboarding@resend.dev' // Fallback to Resend test email
 
 // Generate unique lead ID
 function generateLeadId() {
@@ -211,26 +211,43 @@ async function sendEmailViaResend(data: {
   html: string
   replyTo?: string
   customerName?: string
-}) {
-  // Use customer name as sender name so it shows in inbox
-  const senderName = data.customerName || 'Neue Anfrage'
+}): Promise<{ success: boolean; id?: string; error?: string }> {
+  try {
+    // Use customer name as sender name so it shows in inbox
+    const senderName = data.customerName || 'Neue Anfrage'
 
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${RESEND_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: `${senderName} <${FROM_EMAIL}>`,
-      to: [data.to],
-      subject: data.subject,
-      html: data.html,
-      reply_to: data.replyTo,
-    }),
-  })
+    console.log('📧 Sending email via Resend...')
+    console.log('  From:', `${senderName} <${FROM_EMAIL}>`)
+    console.log('  To:', data.to)
+    console.log('  Subject:', data.subject)
 
-  return response.json()
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: `${senderName} <${FROM_EMAIL}>`,
+        to: [data.to],
+        subject: data.subject,
+        html: data.html,
+        reply_to: data.replyTo,
+      }),
+    })
+
+    const result = await response.json()
+    console.log('📧 Resend API response:', JSON.stringify(result))
+
+    if (result.id) {
+      return { success: true, id: result.id }
+    } else {
+      return { success: false, error: result.message || JSON.stringify(result) }
+    }
+  } catch (error) {
+    console.error('❌ Resend API error:', error)
+    return { success: false, error: String(error) }
+  }
 }
 
 // Send to Google Sheets - formatted for the spreadsheet
@@ -247,18 +264,13 @@ async function sendToGoogleSheets(data: {
   location: string
   message: string
   image_urls: string[]
-}) {
+}): Promise<boolean> {
   if (!SHEETS_WEBHOOK_URL) {
     console.log('⚠️ SHEETS_WEBHOOK_URL not configured')
-    return
+    return false
   }
 
   try {
-    // Format vehicle info
-    const vehicleInfo = [data.brand, data.model, data.year ? `(${data.year})` : '']
-      .filter(Boolean)
-      .join(' ') || '-'
-
     // Send to Google Sheets
     const response = await fetch(SHEETS_WEBHOOK_URL, {
       method: 'POST',
@@ -279,12 +291,22 @@ async function sendToGoogleSheets(data: {
       }),
     })
     console.log('✅ Google Sheets webhook sent, status:', response.status)
+    return response.ok
   } catch (error) {
     console.error('❌ Google Sheets webhook failed:', error)
+    return false
   }
 }
 
 export async function POST(request: NextRequest) {
+  console.log('=== NEW FORM SUBMISSION ===')
+  console.log('Environment check:')
+  console.log('  RESEND_API_KEY:', RESEND_API_KEY ? '✅ Set (' + RESEND_API_KEY.substring(0, 10) + '...)' : '❌ Not set')
+  console.log('  FROM_EMAIL:', FROM_EMAIL)
+  console.log('  RECIPIENT_EMAIL:', RECIPIENT_EMAIL)
+  console.log('  SHEETS_WEBHOOK_URL:', SHEETS_WEBHOOK_URL ? '✅ Set' : '❌ Not set')
+  console.log('  IMGBB_API_KEY:', IMGBB_API_KEY ? '✅ Set' : '❌ Not set')
+
   try {
     const formData = await request.formData()
     const leadId = generateLeadId()
@@ -302,15 +324,13 @@ export async function POST(request: NextRequest) {
     const location = formData.get('location') as string || ''
     const message = formData.get('message') as string || ''
 
-    // Tracking fields
-    const page_url = formData.get('page_url') as string || ''
-    const page_path = formData.get('page_path') as string || ''
-    const referrer = formData.get('referrer') as string || ''
-    const device_type = formData.get('device_type') as string || ''
-    const timestamp = formData.get('timestamp') as string || new Date().toISOString()
-    const lead_source_url = formData.get('lead_source_url') as string || ''
-    const lead_source_path = formData.get('lead_source_path') as string || ''
-    const click_source = formData.get('click_source') as string || ''
+    // Log the inquiry
+    console.log('=== NEUE AUTO-ANKAUF ANFRAGE ===')
+    console.log('Lead ID:', leadId)
+    console.log('Von:', name, '-', email, '-', phone)
+    console.log('Fahrzeug:', brand, model, year)
+    console.log('Ort:', location)
+    console.log('================================')
 
     // Upload images to ImgBB
     const files = formData.getAll('images') as File[]
@@ -328,64 +348,67 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Log the inquiry
-    console.log('=== NEUE AUTO-ANKAUF ANFRAGE ===')
-    console.log('Von:', name, '-', email, '-', phone)
-    console.log('Fahrzeug:', brand, model, year)
-    console.log('Bilder:', imageUrls.length)
-    console.log('================================')
-
-    // Check if Resend API key is configured
-    if (!RESEND_API_KEY) {
-      console.log('⚠️ Resend API Key nicht konfiguriert!')
-      // Still send to Google Sheets
-      await sendToGoogleSheets({
-        brand, model, year, mileage, fuel, priceExpectation,
-        name, email, phone, location, message,
-        image_urls: imageUrls,
-      })
-      return NextResponse.json({ success: true, message: 'Anfrage erfolgreich gesendet!' })
-    }
-
-    // Generate email HTML
-    const emailHTML = generateEmailHTML({
-      brand, model, year, mileage, fuel,
-      name, phone, email, location, message,
-      imageUrls, priceExpectation,
-    })
+    let emailSent = false
+    let sheetsSent = false
 
     // Send email via Resend
-    const vehicleInfo = `${brand || '-'} ${model || '-'} (${year || '-'})`
-    const emailResult = await sendEmailViaResend({
-      to: RECIPIENT_EMAIL,
-      subject: `Neue Anfrage: ${vehicleInfo} - ${name}`,
-      html: emailHTML,
-      replyTo: email,
-      customerName: name, // Show customer name in inbox
-    })
+    if (RESEND_API_KEY) {
+      const emailHTML = generateEmailHTML({
+        brand, model, year, mileage, fuel,
+        name, phone, email, location, message,
+        imageUrls, priceExpectation,
+      })
 
-    console.log('📧 Resend response:', emailResult)
+      const vehicleInfo = `${brand || '-'} ${model || '-'} (${year || '-'})`
+      const emailResult = await sendEmailViaResend({
+        to: RECIPIENT_EMAIL,
+        subject: `Neue Anfrage: ${vehicleInfo} - ${name}`,
+        html: emailHTML,
+        replyTo: email,
+        customerName: name,
+      })
 
-    // Send to Google Sheets (without images)
-    await sendToGoogleSheets({
+      emailSent = emailResult.success
+      if (!emailSent) {
+        console.error('❌ Email failed:', emailResult.error)
+      } else {
+        console.log('✅ Email sent successfully! ID:', emailResult.id)
+      }
+    } else {
+      console.log('⚠️ RESEND_API_KEY not configured, skipping email')
+    }
+
+    // Send to Google Sheets
+    sheetsSent = await sendToGoogleSheets({
       brand, model, year, mileage, fuel, priceExpectation,
       name, email, phone, location, message,
-      image_urls: [], // Don't save images to Google Sheets
+      image_urls: imageUrls,
     })
 
-    if (emailResult.id) {
-      console.log('✅ E-Mail erfolgreich gesendet!')
-      return NextResponse.json({ success: true, message: 'Anfrage erfolgreich gesendet!' })
+    // Return success if at least one method worked
+    if (emailSent || sheetsSent) {
+      console.log('✅ Form submission successful!')
+      console.log('  Email:', emailSent ? '✅' : '❌')
+      console.log('  Sheets:', sheetsSent ? '✅' : '❌')
+      return NextResponse.json({
+        success: true,
+        message: 'Anfrage erfolgreich gesendet!',
+        emailSent,
+        sheetsSent
+      })
     } else {
-      console.error('❌ Resend Fehler:', emailResult)
-      return NextResponse.json({ success: true, message: 'Anfrage erfolgreich gesendet!' })
+      console.error('❌ Both email and sheets failed!')
+      return NextResponse.json({
+        success: false,
+        message: 'Fehler beim Senden. Bitte rufen Sie uns direkt an: 0176 32333561'
+      }, { status: 500 })
     }
 
   } catch (error) {
-    console.error('Error processing inquiry:', error)
+    console.error('❌ Error processing inquiry:', error)
     return NextResponse.json({
       success: false,
-      message: 'Beim Senden ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut.'
+      message: 'Beim Senden ist ein Fehler aufgetreten. Bitte rufen Sie uns an: 0176 32333561'
     }, { status: 500 })
   }
 }

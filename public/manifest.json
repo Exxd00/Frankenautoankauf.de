@@ -1,0 +1,63 @@
+{
+  "name": "Auto Ankauf Franken",
+  "short_name": "Autoankauf",
+  "description": "Verkaufen Sie Ihr Auto zum Bestpreis - Professioneller Autoankauf in Nürnberg & Franken",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#EA580C",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/brand/logo-64.png",
+      "sizes": "64x64",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/logo-128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/logo-256.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/logo-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/brand/apple-180.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["auto", "business", "shopping"],
+  "lang": "de",
+  "dir": "ltr",
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "Kostenlose Bewertung",
+      "short_name": "Bewertung",
+      "description": "Jetzt Auto bewerten lassen",
+      "url": "/#form",
+      "icons": [{ "src": "/brand/logo-128.png", "sizes": "128x128" }]
+    },
+    {
+      "name": "Anrufen",
+      "short_name": "Anrufen",
+      "description": "Jetzt anrufen",
+      "url": "tel:+4917632333561",
+      "icons": [{ "src": "/brand/logo-128.png", "sizes": "128x128" }]
+    }
+  ]
+}

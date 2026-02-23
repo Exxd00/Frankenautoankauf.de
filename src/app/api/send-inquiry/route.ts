@@ -14,6 +14,14 @@ function generateLeadId() {
   return `lead_${timestamp}_${random}`
 }
 
+// Validate email format
+function isValidEmail(email: string): boolean {
+  if (!email || typeof email !== 'string') return false
+  // Basic email regex that checks for standard email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return emailRegex.test(email.trim())
+}
+
 // Format date in German
 function formatDate() {
   const now = new Date()
@@ -221,19 +229,32 @@ async function sendEmailViaResend(data: {
     console.log('  To:', data.to)
     console.log('  Subject:', data.subject)
 
+    // Build email payload, only include reply_to if valid
+    const emailPayload: {
+      from: string
+      to: string[]
+      subject: string
+      html: string
+      reply_to?: string
+    } = {
+      from: `${senderName} <${FROM_EMAIL}>`,
+      to: [data.to],
+      subject: data.subject,
+      html: data.html,
+    }
+
+    // Only add reply_to if it's a valid email
+    if (data.replyTo) {
+      emailPayload.reply_to = data.replyTo
+    }
+
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${RESEND_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        from: `${senderName} <${FROM_EMAIL}>`,
-        to: [data.to],
-        subject: data.subject,
-        html: data.html,
-        reply_to: data.replyTo,
-      }),
+      body: JSON.stringify(emailPayload),
     })
 
     const result = await response.json()
@@ -360,11 +381,18 @@ export async function POST(request: NextRequest) {
       })
 
       const vehicleInfo = `${brand || '-'} ${model || '-'} (${year || '-'})`
+
+      // Only include reply_to if email is valid
+      const validReplyTo = isValidEmail(email) ? email.trim() : undefined
+      if (!validReplyTo && email) {
+        console.log('⚠️ Invalid email format for reply_to, skipping:', email)
+      }
+
       const emailResult = await sendEmailViaResend({
         to: RECIPIENT_EMAIL,
         subject: `Neue Anfrage: ${vehicleInfo} - ${name}`,
         html: emailHTML,
-        replyTo: email,
+        replyTo: validReplyTo,
         customerName: name,
       })
 

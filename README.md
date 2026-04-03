@@ -1,0 +1,24 @@
+# FrankenAutoAnkauf – Website
+
+Next.js (App Router) Projekt für Auto Ankauf in Franken.
+
+## Environment Variables (Vercel)
+
+**Pflicht**
+- `WEB3FORMS_ACCESS_KEY` – Web3Forms Access Key
+
+**Für Bild-Upload (empfohlen)**
+- `BLOB_READ_WRITE_TOKEN` – Vercel Blob Token (damit Bilder als HTTPS Links gespeichert werden)
+
+**Optional: Leads in Google Sheet speichern**
+- `SHEETS_WEBHOOK_URL` – Google Apps Script Webhook URL (siehe `GOOGLE_SHEETS_SETUP.md`)
+
+**Optional: Cron Cleanup Secret**
+- `CRON_SECRET` – falls du den Cleanup Endpoint zusätzlich absichern möchtest
+
+## Features
+- Formular sendet Anfrage über `/api/send-inquiry`
+- Bilder werden in Vercel Blob hochgeladen und als Links in der E-Mail angezeigt
+- Optional: Lead Speicherung in Google Sheets (Webhook)
+- GA4 eingebunden (G-YGLT1K9TFD)
+
